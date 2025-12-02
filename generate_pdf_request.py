@@ -59,6 +59,52 @@ def get_files_for_eyf_ids(folder_path, eyf_ids):
         result.append((eyf_id, matching_files))
     
     return result
+
+def read_eyf_ids_from_file(ids_file):
+    """
+    Reads a list of EYF IDs from a text file.
+
+    Args:
+        ids_file (str): Path to the text file containing EYF IDs (one per line).
+
+    Returns:
+        list: A list of EYF IDs.
+    """
+    with open(ids_file, 'r') as f:
+        return [line.strip() for line in f]
+
+def process_waiver_matches(eyf_ids_with_filepaths):
+    """
+    Processes the matched waiver files, identifying errors and successful matches.
+
+    Args:
+        eyf_ids_with_filepaths (list): A list of tuples, each containing an EYF ID and a list of file paths.
+
+    Returns:
+        list: A list of file paths for the PDFs that are ready to be combined.
+    """
+    pdfs_to_combine = []
+    for eyf_id, filepaths in eyf_ids_with_filepaths:
+        if len(filepaths) == 0:
+            print(f"ERROR: No waiver found for EYF ID {eyf_id}")
+        elif len(filepaths) > 1:
+            print(f"ERROR: Multiple waivers found for EYF ID {eyf_id}:")
+            for filepath in filepaths:
+                print(f"  {filepath}")
+        else:  # exactly one file found
+            pdfs_to_combine.append(filepaths[0])
+    return pdfs_to_combine
+
+def combine_pdfs(pdf_list):
+    """
+    Creates the combined PDF from the list of files
+
+    Args:
+        pdf_list (list): A list of paths to PDF files to be combined.
+    """
+    print('PDFs to combine:')
+    for pdf in pdf_list:
+        print(f"  {pdf}")
         
 def main():
     if len(sys.argv) != 3:
@@ -70,8 +116,7 @@ def main():
     folder_path = sys.argv[1]
     ids_file = sys.argv[2]
     
-    with open(ids_file, 'r') as f:
-        eyf_ids = [line.strip() for line in f]
+    eyf_ids = read_eyf_ids_from_file(ids_file)
     
     file_pattern = "[EYF ID]_[Client name]_KCS Records Consent_[previous file name]_[date].pdf"
     regex_pattern = r"^[0-9]+_[A-Za-z ]+_KCS Records Consent_.*\.pdf$"
@@ -86,20 +131,10 @@ def main():
             sys.exit(1)
 
         eyf_ids_with_filepaths = get_files_for_eyf_ids(folder_path, eyf_ids)
+        pdfs_to_combine = process_waiver_matches(eyf_ids_with_filepaths)
 
-        fully_matched_count = 0
-        pdfs_to_combine = []
-        eyf_id_count = len(eyf_ids_with_filepaths)
-        for eyf_id, filepaths in eyf_ids_with_filepaths:
-            if len(filepaths) == 0:
-                print(f"ERROR: No waiver found for EYF ID {eyf_id}")
-            elif len(filepaths) > 1:
-                print(f"ERROR: Multiple waivers found for EYF ID {eyf_id}:")
-                for filepath in filepaths:
-                    print(f"  {filepath}")
-            else: # exactly one file found
-                fully_matched_count += 1
-                pdfs_to_combine.append(filepaths[0])
+        fully_matched_count = len(pdfs_to_combine)
+        eyf_id_count = len(eyf_ids)
 
         print(f"Successfully matched waivers for {fully_matched_count} out of {eyf_id_count} EYF IDs. Proceed with PDF generation?")
         user_input = input("Enter 'y' to continue or 'n' to cancel: ").strip().lower()
@@ -107,10 +142,7 @@ def main():
             print("Operation cancelled.")
             sys.exit(0)
 
-        # combine pdfs
-        print('PDFs to combine:')
-        for pdf in pdfs_to_combine:
-            print(f"  {pdf}")
+        combine_pdfs(pdfs_to_combine)
             
     except Exception as e:
         print(f"Unexpected Error: {e}")
